@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Hill Climb - RTDB Leaderboard</title>
+    <style>
+        /* === STYLING & UI === */
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #080808; color: #fff; font-family: 'Segoe UI', sans-serif; user-select: none; touch-action: none; }
+        canvas { display: block; }
+        #ui { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 10; pointer-events: none; display: none; }
+        #stats { display: flex; flex-direction: column; gap: 12px; }
+        #fuelContainer { width: 250px; height: 20px; background: #222; border-radius: 10px; border: 2px solid #00ffcc; box-shadow: 0 0 10px #00ffcc; overflow: hidden; position: relative; }
+        #fuelBar { width: 100%; height: 100%; background: #00ffcc; box-shadow: 0 0 15px #00ffcc; transition: width 0.1s linear, background-color 0.3s; }
+        #fuelText { position: absolute; top: 0; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: bold; color: #fff; line-height: 20px; text-shadow: 1px 1px 2px #000; }
+        .neon-text { font-size: 24px; font-weight: bold; color: #fff; text-shadow: 0 0 10px #00ffcc; }
+        #controlsHint { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); font-size: 16px; color: rgba(255,255,255,0.5); text-shadow: 0 0 5px rgba(255,255,255,0.3); pointer-events: none; display: none; text-align: center; }
+        
+        .overlay-screen { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 20; backdrop-filter: blur(5px); }
+        #gameOverScreen { display: none; }
+        h1 { font-size: 50px; color: #00ffcc; text-shadow: 0 0 25px #00ffcc; margin-bottom: 10px; text-transform: uppercase; text-align: center; }
+        #gameOverScreen h1 { color: #ff0055; text-shadow: 0 0 25px #ff0055; }
+        p.subtitle { font-size: 20px; color: #ccc; margin-bottom: 30px; text-align: center; }
+        
+        input[type="text"] { padding: 12px 20px; font-size: 18px; border-radius: 25px; border: 2px solid #00ffcc; background: #111; color: #00ffcc; outline: none; margin-bottom: 20px; text-align: center; box-shadow: 0 0 10px rgba(0,255,204,0.3); }
+        button { background: transparent; color: #00ffcc; border: 2px solid #00ffcc; padding: 15px 40px; font-size: 20px; font-weight: bold; border-radius: 30px; cursor: pointer; box-shadow: 0 0 15px rgba(0, 255, 204, 0.4), inset 0 0 15px rgba(0, 255, 204, 0.2); transition: all 0.3s ease; }
+        button:hover { background: #00ffcc; color: #000; box-shadow: 0 0 25px #00ffcc; transform: scale(1.05); }
+
+        /* Mobile Controls */
+        #mobileControls { position: absolute; bottom: 20px; width: 100%; display: none; justify-content: space-between; padding: 0 20px; box-sizing: border-box; z-index: 15; }
+        .control-btn { padding: 20px; width: 90px; height: 90px; border-radius: 50%; font-size: 16px; font-weight: bold; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); transition: 0.1s; }
+        .control-btn:active { transform: scale(0.9); }
+        #btnBrake { border: 3px solid #ff0055; color: #ff0055; box-shadow: 0 0 15px rgba(255,0,85,0.4); }
+        #btnBrake:active { background: rgba(255,0,85,0.3); }
+        #btnAccel { border: 3px solid #00ffcc; color: #00ffcc; box-shadow: 0 0 15px rgba(0,255,204,0.4); }
+        #btnAccel:active { background: rgba(0,255,204,0.3); }
+
+        /* Leaderboard */
+        #leaderboard { margin-top: 20px; background: rgba(0,0,0,0.6); padding: 15px 30px; border-radius: 15px; border: 1px solid #00ffcc; width: 300px; max-height: 250px; overflow-y: auto; }
+        #leaderboard h3 { color: #ffeb3b; text-align: center; margin-top: 0; margin-bottom: 10px; font-size: 22px; text-shadow: 0 0 10px #ffeb3b; }
+        #leaderboardList { list-style: none; padding: 0; margin: 0; color: #fff; font-size: 16px; line-height: 1.6; }
+        #leaderboardList li { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 5px 0; }
+        #leaderboardList li span { color: #00ffcc; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="startScreen" class="overlay-screen">
+        <h1>Neon Hill Climb</h1>
+        <p class="subtitle">Enter your name & start engine.</p>
+        <input type="text" id="playerName" placeholder="Your Name" autocomplete="off" maxlength="12">
+        <button onclick="window.initGame()">START ENGINE</button>
+    </div>
+
+    <div id="ui">
+        <div id="stats">
+            <div id="fuelContainer">
+                <div id="fuelBar"></div>
+                <div id="fuelText">FUEL</div>
+            </div>
+            <div id="distance" class="neon-text">Distance: 0m</div>
+        </div>
+        <div id="score" class="neon-text">Pickups: 0</div>
+    </div>
+
+    <div id="controlsHint">Use On-Screen Buttons or Arrows [UP/DOWN]</div>
+
+    <div id="mobileControls">
+        <div id="btnBrake" class="control-btn">BRAKE</div>
+        <div id="btnAccel" class="control-btn">GAS</div>
+    </div>
+
+    <div id="gameOverScreen" class="overlay-screen">
+        <h1>GAME OVER</h1>
+        <p id="reason" class="subtitle">You ran out of fuel!</p>
+        <button onclick="window.restartGame()">TRY AGAIN</button>
+        
+        <div id="leaderboard">
+            <h3>Top 10 Drivers</h3>
+            <ul id="leaderboardList"></ul>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script type="module">
+        // === FIREBASE SETUP (Realtime Database) ===
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, push, set, query, orderByChild, limitToLast, get } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        // তোমার কনফিগারেশনে databaseURL যুক্ত করা হয়েছে
+        const firebaseConfig = {
+            apiKey: "AIzaSyD0qkv3zCDzJ2Yopk_TUNn28y7HwcJLiZo",
+            authDomain: "hillclimbracing-63f82.firebaseapp.com",
+            databaseURL: "https://hillclimbracing-63f82-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            projectId: "hillclimbracing-63f82",
+            storageBucket: "hillclimbracing-63f82.firebasestorage.app",
+            messagingSenderId: "871928296686",
+            appId: "1:871928296686:web:e3c28a643219fb02cf6fff",
+            measurementId: "G-GE03175QZF"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app); // Firestore এর বদলে Realtime Database ইনিশিয়ালাইজ
+
+        // === PLAYER & LEADERBOARD DATA ===
+        let currentPlayer = "Guest";
+
+        async function saveAndShowLeaderboard(distance) {
+            const list = document.getElementById('leaderboardList');
+            list.innerHTML = '<li>Loading scores...</li>';
+
+            try {
+                // ১. ফায়ারবেসে প্লেয়ারের ডাটা সেভ করা
+                const scoresRef = ref(db, 'leaderboard');
+                const newScoreRef = push(scoresRef);
+                await set(newScoreRef, {
+                    name: currentPlayer,
+                    dist: distance,
+                    timestamp: Date.now()
+                });
+
+                // ২. ডাটাবেস থেকে টপ ১০ স্কোর ফেচ করা
+                // RTDB ডিফল্টভাবে ছোট থেকে বড় সাজায়, তাই শেষ ১০টি নিয়ে জাভাস্ক্রিপ্টে রিভার্স করবো
+                const topScoresQuery = query(scoresRef, orderByChild('dist'), limitToLast(10));
+                const snapshot = await get(topScoresQuery);
+                
+                list.innerHTML = '';
+                if (snapshot.exists()) {
+                    let scores = [];
+                    snapshot.forEach((childSnapshot) => {
+                        scores.push(childSnapshot.val());
+                    });
+                    
+                    // বড় থেকে ছোট সাজানো (Descending Order)
+                    scores.sort((a, b) => b.dist - a.dist);
+                    
+                    scores.forEach((data, index) => {
+                        let li = document.createElement('li');
+                        li.innerHTML = `${index + 1}. ${data.name} <span>${data.dist}m</span>`;
+                        list.appendChild(li);
+                    });
+                } else {
+                    list.innerHTML = '<li>No scores yet!</li>';
+                }
+            } catch (error) {
+                console.error("Firebase error: ", error);
+                list.innerHTML = '<li>Error loading leaderboard! Check console.</li>';
+            }
+        }
+
+        // === AUDIO SYSTEM ===
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx, engineOsc, engineGain, engineFilter, bgmOsc, bgmGain;
+
+        function setupAudio() {
+            try {
+                if (!audioCtx) audioCtx = new AudioContext();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                if (!bgmOsc) {
+                    bgmOsc = audioCtx.createOscillator(); bgmOsc.type = 'sine';
+                    bgmOsc.frequency.setValueAtTime(55, audioCtx.currentTime); 
+                    bgmGain = audioCtx.createGain(); bgmGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    bgmOsc.connect(bgmGain); bgmGain.connect(audioCtx.destination); bgmOsc.start();
+                }
+
+                if (!engineOsc) {
+                    engineOsc = audioCtx.createOscillator(); engineOsc.type = 'square';
+                    engineOsc.frequency.setValueAtTime(25, audioCtx.currentTime);
+                    engineFilter = audioCtx.createBiquadFilter(); engineFilter.type = 'lowpass';
+                    engineFilter.frequency.setValueAtTime(100, audioCtx.currentTime);
+                    engineGain = audioCtx.createGain(); engineGain.gain.setValueAtTime(0, audioCtx.currentTime); 
+                    engineOsc.connect(engineFilter); engineFilter.connect(engineGain);
+                    engineGain.connect(audioCtx.destination); engineOsc.start();
+                }
+            } catch (e) { console.log("Audio error:", e); }
+        }
+
+        function updateEngineSound(power, isDead) {
+            if (!audioCtx || !engineGain || !engineOsc || !engineFilter) return;
+            if (isDead) { engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1); return; }
+
+            if (power > 0) { 
+                engineOsc.frequency.setTargetAtTime(60, audioCtx.currentTime, 0.1); 
+                engineFilter.frequency.setTargetAtTime(300, audioCtx.currentTime, 0.1); 
+                engineGain.gain.setTargetAtTime(0.4, audioCtx.currentTime, 0.1);
+            } else if (power < 0) { 
+                engineOsc.frequency.setTargetAtTime(35, audioCtx.currentTime, 0.1); 
+                engineFilter.frequency.setTargetAtTime(150, audioCtx.currentTime, 0.1);
+                engineGain.gain.setTargetAtTime(0.3, audioCtx.currentTime, 0.1);
+            } else { 
+                engineOsc.frequency.setTargetAtTime(25, audioCtx.currentTime, 0.2); 
+                engineFilter.frequency.setTargetAtTime(80, audioCtx.currentTime, 0.2); 
+                engineGain.gain.setTargetAtTime(0.2, audioCtx.currentTime, 0.2);
+            }
+        }
+
+        function playPickupSound() {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } catch (e) {}
+        }
+
+        function playCrashSound() {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+                osc.type = 'square'; osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+            } catch (e) {}
+        }
+
+        // === GAME SETUP ===
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const uiContainer = document.getElementById('ui');
+        const hintContainer = document.getElementById('controlsHint');
+        const mobileControls = document.getElementById('mobileControls');
+        const fuelBar = document.getElementById('fuelBar');
+        const distanceEl = document.getElementById('distance');
+        const scoreEl = document.getElementById('score');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const reasonEl = document.getElementById('reason');
+        const nameInput = document.getElementById('playerName');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // === CONTROLS ===
+        let keys = {};
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+
+        const btnBrake = document.getElementById('btnBrake');
+        const btnAccel = document.getElementById('btnAccel');
+
+        function handleTouchStart(code) { return (e) => { e.preventDefault(); keys[code] = true; } }
+        function handleTouchEnd(code) { return (e) => { e.preventDefault(); keys[code] = false; } }
+
+        btnAccel.addEventListener('touchstart', handleTouchStart('ArrowUp'), {passive: false});
+        btnAccel.addEventListener('touchend', handleTouchEnd('ArrowUp'), {passive: false});
+        btnAccel.addEventListener('mousedown', handleTouchStart('ArrowUp'));
+        btnAccel.addEventListener('mouseup', handleTouchEnd('ArrowUp'));
+
+        btnBrake.addEventListener('touchstart', handleTouchStart('ArrowDown'), {passive: false});
+        btnBrake.addEventListener('touchend', handleTouchEnd('ArrowDown'), {passive: false});
+        btnBrake.addEventListener('mousedown', handleTouchStart('ArrowDown'));
+        btnBrake.addEventListener('mouseup', handleTouchEnd('ArrowDown'));
+
+        let state = 'start'; 
+        let cameraX = 0, cameraY = 0, maxDistance = 0, pickupsCollected = 0;
+        let particles = [];
+
+        // === CLASSES ===
+        class ExhaustParticle {
+            constructor(x, y, angle) {
+                this.x = x; this.y = y;
+                this.vx = -Math.cos(angle) * (Math.random() * 2 + 1) + (Math.random() - 0.5);
+                this.vy = -Math.sin(angle) * (Math.random() * 2 + 1) + (Math.random() - 0.5);
+                this.life = 1.0; this.size = Math.random() * 4 + 2;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.life -= 0.05; }
+            draw(ctx) {
+                ctx.fillStyle = `rgba(0, 255, 204, ${this.life})`;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, radius) { this.x = x; this.y = y; this.oldX = x; this.oldY = y; this.radius = radius; }
+            integrate(gravity, friction) {
+                let vx = (this.x - this.oldX) * friction; let vy = (this.y - this.oldY) * friction;
+                this.oldX = this.x; this.oldY = this.y;
+                this.x += vx; this.y += vy + gravity;
+            }
+            constrain(terrain) {
+                let groundY = terrain.getHeight(this.x); let isGrounded = false;
+                if (this.y + this.radius > groundY) {
+                    this.y = groundY - this.radius;
+                    let vx = this.x - this.oldX; let vy = this.y - this.oldY;
+                    this.oldX = this.x - vx * 0.95; 
+                    if (vy > 0) this.oldY = this.y + vy * 0.3; 
+                    isGrounded = true;
+                }
+                return isGrounded;
+            }
+        }
+
+        class Car {
+            constructor(x, y) {
+                this.wheelBase = 70; this.wheelRadius = 16;
+                this.p1 = new Particle(x - this.wheelBase / 2, y, this.wheelRadius); 
+                this.p2 = new Particle(x + this.wheelBase / 2, y, this.wheelRadius); 
+                this.fuel = 100; this.dead = false;
+            }
+            update(terrain) {
+                if (this.dead) return;
+                this.p1.integrate(0.6, 0.995); this.p2.integrate(0.6, 0.995);
+
+                for (let i = 0; i < 3; i++) {
+                    let dx = this.p2.x - this.p1.x; let dy = this.p2.y - this.p1.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    let diff = this.wheelBase - dist; let percent = diff / dist / 2;
+                    let offsetX = dx * percent; let offsetY = dy * percent;
+
+                    this.p1.x -= offsetX; this.p1.y -= offsetY;
+                    this.p2.x += offsetX; this.p2.y += offsetY;
+                    this.grounded1 = this.p1.constrain(terrain);
+                    this.grounded2 = this.p2.constrain(terrain);
+                }
+
+                this.cx = (this.p1.x + this.p2.x) / 2; this.cy = (this.p1.y + this.p2.y) / 2;
+                let dx = this.p2.x - this.p1.x; let dy = this.p2.y - this.p1.y;
+                this.angle = Math.atan2(dy, dx);
+                this.fuel -= 0.03; let power = 0;
+
+                if (this.fuel > 0) {
+                    if (keys['ArrowUp']) power = 1.3;
+                    if (keys['ArrowDown']) power = -0.9; 
+
+                    if (power !== 0) {
+                        this.fuel -= 0.05; 
+                        if (power > 0 && Math.random() > 0.3) {
+                            let exX = this.cx - Math.cos(this.angle) * 45; 
+                            let exY = this.cy - Math.sin(this.angle) * 45;
+                            particles.push(new ExhaustParticle(exX, exY, this.angle));
+                        }
+                        if (this.grounded1 || this.grounded2) {
+                            let fx = Math.cos(this.angle) * power; let fy = Math.sin(this.angle) * power;
+                            this.p1.x += fx; this.p1.y += fy; this.p2.x += fx; this.p2.y += fy;
+                        } else {
+                            let torque = power * 0.02 ;
+                            this.angle += torque;
+                            this.p1.x = this.cx - Math.cos(this.angle) * (this.wheelBase / 2);
+                            this.p1.y = this.cy - Math.sin(this.angle) * (this.wheelBase / 2);
+                            this.p2.x = this.cx + Math.cos(this.angle) * (this.wheelBase / 2);
+                            this.p2.y = this.cy + Math.sin(this.angle) * (this.wheelBase / 2);
+                        }
+                    }
+                }
+
+                updateEngineSound(power, this.dead);
+
+                let nx = dy / this.wheelBase; let ny = -dx / this.wheelBase;
+                let roofX = this.cx + nx * 30; let roofY = this.cy + ny * 30;
+
+                if (roofY > terrain.getHeight(roofX) - 5) this.die("You flipped the car!");
+                if (this.fuel <= 0 && !this.dead) this.die("Out of fuel!");
+            }
+
+            die(reason) {
+                this.dead = true; this.fuel = 0;
+                updateEngineSound(0, true); playCrashSound(); 
+                state = 'gameover'; reasonEl.innerText = reason;
+                mobileControls.style.display = 'none'; 
+                gameOverScreen.style.display = 'flex'; keys = {}; 
+                
+                // কল করা হচ্ছে ফায়ারবেস RTDB ফাংশন
+                saveAndShowLeaderboard(maxDistance);
+            }
+
+            draw(ctx) {
+                ctx.save(); ctx.translate(this.cx, this.cy); ctx.rotate(this.angle);
+                ctx.shadowBlur = 15; ctx.shadowColor = '#ff0055'; ctx.fillStyle = '#ff0055';
+                ctx.beginPath(); ctx.roundRect(-45, -20, 90, 25, 8); ctx.fill();
+
+                ctx.fillStyle = '#111'; ctx.shadowColor = '#00ffcc';
+                ctx.beginPath(); ctx.roundRect(-20, -45, 50, 25, 10); ctx.fill();
+                ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2; ctx.stroke();
+
+                ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(0, 255, 204, 0.15)';
+                ctx.beginPath(); ctx.moveTo(40, -10); ctx.lineTo(300, -80); ctx.lineTo(300, 80); ctx.fill();
+                ctx.restore();
+
+                this.drawWheel(ctx, this.p1); this.drawWheel(ctx, this.p2);
+            }
+
+            drawWheel(ctx, p) {
+                ctx.save(); ctx.translate(p.x, p.y);
+                let spin = p.x * 0.1; ctx.rotate(spin);
+                ctx.fillStyle = '#111'; ctx.shadowBlur = 10; ctx.shadowColor = '#00ffcc';
+                ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.shadowBlur = 0; ctx.strokeStyle = '#333'; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(-p.radius, 0); ctx.lineTo(p.radius, 0);
+                ctx.moveTo(0, -p.radius); ctx.lineTo(0, p.radius); ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        class Terrain {
+            constructor() { this.seed = Math.random() * 10000; }
+            getHeight(x) {
+                let nx = x * 0.002; let y = 0;
+                y += Math.sin(nx + this.seed) * 200; y += Math.sin(nx * 2.3 + this.seed) * 100;
+                y += Math.sin(nx * 5.1 + this.seed) * 40; y += Math.sin(nx * 10.5 + this.seed) * 15;
+                return 400 - y; 
+            }
+            draw(ctx, camX, screenW, screenH) {
+                let startX = camX - screenW / 2 - 50; let endX = camX + screenW / 2 + 50;
+                ctx.fillStyle = '#0a0a0a'; ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 4;
+                ctx.shadowBlur = 15; ctx.shadowColor = '#00ffcc';
+                ctx.beginPath(); ctx.moveTo(startX, screenH + 500); 
+                for (let x = startX; x <= endX; x += 20) ctx.lineTo(x, this.getHeight(x));
+                ctx.lineTo(endX, screenH + 500); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0; 
+            }
+        }
+
+        class Pickup {
+            constructor(x, terrain) {
+                this.x = x; this.y = terrain.getHeight(x) - 40; 
+                this.collected = false; this.bobOffset = Math.random() * Math.PI * 2;
+            }
+            update(car) {
+                if (this.collected) return;
+                let dx = this.x - car.cx; let dy = this.y - car.cy;
+                if (dx * dx + dy * dy < 3000) { 
+                    this.collected = true; car.fuel = Math.min(100, car.fuel + 35); 
+                    pickupsCollected++; playPickupSound(); 
+                }
+            }
+            draw(ctx, time) {
+                if (this.collected) return;
+                let bobY = this.y + Math.sin(time * 0.005 + this.bobOffset) * 10;
+                ctx.shadowBlur = 20; ctx.shadowColor = '#ffeb3b'; ctx.fillStyle = '#ffeb3b';
+                ctx.beginPath(); ctx.arc(this.x, bobY, 12, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle'; ctx.fillText('$', this.x, bobY); ctx.shadowBlur = 0;
+            }
+        }
+
+        // === GAME LOGIC ===
+        let terrain, car, pickups = [];
+        let lastChunk = -1; let time = 0;
+
+        window.initGame = function() {
+            let inputVal = nameInput.value.trim();
+            currentPlayer = inputVal !== "" ? inputVal : "Guest";
+
+            setupAudio(); 
+            startScreen.style.display = 'none'; 
+            uiContainer.style.display = 'flex';
+            hintContainer.style.display = 'block';
+            
+            let wasPlaying = (state === 'playing');
+            window.restartGame(); 
+            if (!wasPlaying) requestAnimationFrame(loop);
+        };
+
+        window.restartGame = function() {
+            terrain = new Terrain();
+            let startX = 0; let startY = terrain.getHeight(startX) - 100;
+            car = new Car(startX, startY);
+            pickups = []; particles = []; lastChunk = -1; maxDistance = 0; pickupsCollected = 0;
+            cameraX = 0; cameraY = 0; state = 'playing'; 
+            gameOverScreen.style.display = 'none';
+            mobileControls.style.display = 'flex'; 
+        };
+
+        function spawnPickups() {
+            let chunk = Math.floor(car.cx / 600); 
+            if (chunk > lastChunk) {
+                lastChunk = chunk;
+                let numItems = Math.random() > 0.5 ? 2 : 1;
+                for (let i = 0; i < numItems; i++) {
+                    let spawnX = chunk * 600 + Math.random() * 500 + 300; 
+                    pickups.push(new Pickup(spawnX, terrain));
+                }
+                pickups = pickups.filter(p => p.x > car.cx - window.innerWidth);
+            }
+        }
+
+        function updateUI() {
+            let fuelPct = Math.max(0, car.fuel);
+            fuelBar.style.width = fuelPct + '%';
+            if (fuelPct < 20) { fuelBar.style.backgroundColor = '#ff0055'; fuelBar.style.boxShadow = '0 0 15px #ff0055'; }
+            else if (fuelPct < 50) { fuelBar.style.backgroundColor = '#ffeb3b'; fuelBar.style.boxShadow = '0 0 15px #ffeb3b'; }
+            else { fuelBar.style.backgroundColor = '#00ffcc'; fuelBar.style.boxShadow = '0 0 15px #00ffcc'; }
+            let dist = Math.floor(car.cx / 10); maxDistance = Math.max(maxDistance, dist);
+            distanceEl.innerText = 'Distance: ' + maxDistance + 'm'; scoreEl.innerText = 'Pickups: ' + pickupsCollected;
+        }
+
+        function loop(timestamp) {
+            time = timestamp;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (state === 'playing') { car.update(terrain); spawnPickups(); }
+
+            let targetCamX = car.cx + canvas.width * 0.2; let targetCamY = car.cy - canvas.height * 0.1;
+            cameraX += (targetCamX - cameraX) * 0.1; cameraY += (targetCamY - cameraY) * 0.1;
+
+            ctx.fillStyle = 'rgba(0, 255, 204, 0.05)';
+            for (let i = 0; i < 50; i++) {
+                let px = (cameraX * 0.2 + i * 150) % canvas.width;
+                let py = (cameraY * 0.2 + (i * 73) % canvas.height) % canvas.height;
+                ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI * 2); ctx.fill();
+            }
+
+            ctx.save(); ctx.translate(canvas.width / 2 - cameraX, canvas.height / 2 - cameraY);
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i]; if (state === 'playing') p.update(); 
+                p.draw(ctx); if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            for (let p of pickups) { if (state === 'playing') p.update(car); p.draw(ctx, time); }
+            
+            car.draw(ctx); terrain.draw(ctx, cameraX, canvas.width, canvas.height);
+            ctx.restore(); updateUI(); requestAnimationFrame(loop);
+        }
+    </script>
+</body>
+</html>

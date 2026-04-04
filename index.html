@@ -398,7 +398,7 @@
                                 particles.push(new DustParticle(wheelX, wheelY));
                             }
                         } else {
-                            let torque = power * 0.02; //changable
+                            let torque = power * 0.015; //changable
                             this.angle += torque;
                             this.p1.x = this.cx - Math.cos(this.angle) * (this.wheelBase / 2);
                             this.p1.y = this.cy - Math.sin(this.angle) * (this.wheelBase / 2);
